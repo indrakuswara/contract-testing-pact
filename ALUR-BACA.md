@@ -81,3 +81,38 @@ yang pertama, contract test memeriksa yang kedua.
   *kesepakatan antar-tim*, bukan cuma fungsi satu tim.
 - Di perusahaan dengan banyak service, file kontrak inilah yang
   mencegah satu tim merusak tim lain tanpa ketahuan sebelum deploy.
+
+## Kapan test ini jalan dalam siklus deploy?
+
+Pertanyaan yang muncul saat membaca repo ini (19 Okt): kalau ada
+enhancement atau hotfix, contract test jalan berbarengan dengan
+deployment ke production?
+
+Jawaban tepatnya: ia jalan di pipeline CI yang sama dengan perubahan
+kodenya, tapi SEBELUM deploy — sebagai GERBANG, bukan di production.
+
+- **Enhancement di consumer** (reader butuh field baru): consumer
+  mengubah test-nya dulu -> kontrak baru tercatat -> provider
+  verification GAGAL sampai provider menambahkan field itu. Merah di
+  sini memang disengaja: itu sinyal kerja buat tim provider. Sesudah
+  provider menambahkan field-nya dan hijau lagi, urutan deploy yang
+  aman: provider duluan (ia masih melayani bentuk lama juga), BARU
+  consumer yang memakai field baru.
+- **Hotfix di provider** (perbaikan buru-buru yang menyentuh bentuk
+  response): pipeline provider menjalankan verification terhadap
+  kontrak consumer yang sedang live. Hotfix yang mematahkan kontrak
+  (misal field ke-rename) membuat pipeline MERAH dan deploy KE-TAHAN —
+  justru di momen buru-buru itulah alarm ini paling berharga.
+- **Di tim nyata** (consumer & provider beda repo/tim): kontrak
+  disimpan di Pact Broker. Pipeline consumer menerbitkan kontrak baru
+  ke broker; broker memicu pipeline provider untuk memverifikasi;
+  dan sebelum deploy ada pemeriksaan `can-i-deploy`: "versi yang mau
+  naik ini sudah terverifikasi terhadap versi lawan yang sedang live
+  di production?" Belum terverifikasi / gagal = deploy diblokir.
+- **Di repo latihan ini** (dua sisi satu repo): bentuk sederhananya
+  adalah `npm test` jalan di CI pada setiap PR/push. Merah = tidak
+  bisa merge, jadi tidak ada yang sampai ke deployment.
+
+Yang TIDAK dilakukan: memutar verification ke server production
+langsung. Verification selalu ke instance provider yang dinyalakan
+di CI (di repo ini: port acak, data in-memory).
